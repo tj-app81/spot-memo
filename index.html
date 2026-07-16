@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#2563eb" />
+  <title>買い物メモ — 地図で買い物メモ</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- PWA（ホーム画面追加・通知用） -->
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-180.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="買い物メモ" />
+</head>
+<body>
+  <!-- 地図（全画面） -->
+  <div id="map"></div>
+
+  <!-- 検索バー（上に浮かぶ） -->
+  <div id="searchbar">
+    <form id="search-form">
+      <span class="icon">🔍</span>
+      <input id="search-input" type="text" placeholder="店名や住所で検索" autocomplete="off" />
+    </form>
+  </div>
+
+  <!-- 見守りステータス（ONのとき表示） -->
+  <p id="watch-status"></p>
+
+  <!-- 下部バー -->
+  <nav id="bottombar">
+    <button id="list-toggle" type="button">🛒 リスト</button>
+    <button id="watch-toggle" type="button">🔔 見守り OFF</button>
+    <button id="notify-test" type="button" title="通知の見た目を確認">✉️</button>
+  </nav>
+
+  <!-- 場所一覧（下からスライドするシート） -->
+  <div id="sheet" class="hidden">
+    <div class="sheet-handle"></div>
+    <h2>買い物リスト</h2>
+    <div id="place-list"></div>
+    <button id="add-chain" type="button">🏪 チェーン店メモを追加（どこの店舗でも通知）</button>
+    <div id="settings">
+      <h3>通知距離</h3>
+      <label>📍 場所ピン
+        <select id="pin-dist">
+          <option value="100">100m</option>
+          <option value="300">300m</option>
+          <option value="500">500m</option>
+          <option value="1000">1km</option>
+        </select>
+      </label>
+      <label>🏪 チェーン店
+        <select id="chain-dist">
+          <option value="100">100m</option>
+          <option value="150">150m</option>
+          <option value="300">300m</option>
+          <option value="500">500m</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <!-- ピン詳細（下からスライドするシート） -->
+  <div id="panel" class="hidden">
+    <div class="sheet-handle"></div>
+    <div class="panel-head">
+      <input id="place-name" type="text" placeholder="場所の名前（例：とらや）" />
+      <button id="panel-close" title="閉じる">✕</button>
+    </div>
+    <form id="item-form">
+      <input id="item-input" type="text" placeholder="買いたいもの（例：羊羹）" autocomplete="off" />
+      <button type="submit">追加</button>
+    </form>
+    <ul id="item-list"></ul>
+    <button id="delete-place" class="danger">この場所を削除</button>
+  </div>
+
+  <!-- アプリ本体（initApp を定義） -->
+  <script src="app.js"></script>
+
+  <!-- Google Maps を読み込み（読み込み完了後 initApp が呼ばれる） -->
+  <!-- ↓↓↓ key= のあとがAPIキー。差し替えるときはここを編集 ↓↓↓ -->
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAXcynTyYELXFxTkvM8EF20qPsMVLeggTU&libraries=places&language=ja&region=JP&callback=initApp&loading=async"
+    async
+  ></script>
+</body>
+</html>
