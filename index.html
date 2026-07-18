@@ -41,7 +41,15 @@
     <div class="sheet-handle"></div>
     <h2>買い物リスト</h2>
     <div id="place-list"></div>
-    <button id="add-chain" type="button">🏪 チェーン店メモを追加（どこの店舗でも通知）</button>
+    <div id="add-row">
+      <button id="add-chain" type="button">🏪 チェーン店メモ</button>
+      <button id="add-category" type="button">🛒 カテゴリメモ</button>
+    </div>
+    <div id="add-cat-row" class="hidden">
+      <button type="button" data-cat="supermarket">🛒 スーパー</button>
+      <button type="button" data-cat="convenience_store">🏪 コンビニ</button>
+      <button type="button" data-cat="drugstore">💊 ドラッグストア</button>
+    </div>
     <div id="settings">
       <h3>通知距離</h3>
       <label>📍 場所ピン
@@ -52,7 +60,7 @@
           <option value="1000">1km</option>
         </select>
       </label>
-      <label>🏪 チェーン店
+      <label>🏪 チェーン・カテゴリ
         <select id="chain-dist">
           <option value="100">100m</option>
           <option value="150">150m</option>

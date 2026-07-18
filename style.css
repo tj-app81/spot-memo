@@ -166,20 +166,26 @@ html, body {
 .place-card.done .count { color: #16a34a; }
 .empty { font-size: 13px; color: #94a3b8; text-align: center; padding: 16px 0; }
 
-/* チェーンメモ */
+/* チェーン・カテゴリメモ */
 .place-card.chain { border-style: dashed; border-color: #c7d5e8; background: #fbfdff; }
-#add-chain {
-  width: 100%;
+#add-row, #add-cat-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+#add-cat-row { margin-top: 8px; }
+#add-cat-row.hidden { display: none; }
+#add-row button, #add-cat-row button {
+  flex: 1;
   border: 1px dashed #b7c6da;
   background: none;
   color: var(--muted);
-  padding: 12px;
+  padding: 12px 6px;
   border-radius: 14px;
   cursor: pointer;
   font-size: 13px;
-  margin-top: 4px;
 }
-#add-chain:active { background: var(--accent-soft); }
+#add-row button:active, #add-cat-row button:active { background: var(--accent-soft); }
 
 /* 通知距離の設定 */
 #settings {

@@ -96,6 +96,23 @@ function setupUI() {
     openPanel(place.id);
     placeNameInput.focus();
   });
+  // カテゴリメモの追加（スーパー等・業種で通知）
+  const addCatRow = document.getElementById("add-cat-row");
+  document.getElementById("add-category").addEventListener("click", () => {
+    addCatRow.classList.toggle("hidden");
+  });
+  addCatRow.querySelectorAll("button").forEach((b) => {
+    b.addEventListener("click", () => {
+      const cat = b.dataset.cat;
+      const place = { id: uid(), name: CATEGORY_LABELS[cat] || "カテゴリ", category: cat, items: [] };
+      places.push(place);
+      save();
+      addCatRow.classList.add("hidden");
+      renderList();
+      openPanel(place.id);
+      itemInput.focus();
+    });
+  });
   // 通知距離の設定
   const pinSel = document.getElementById("pin-dist");
   const chainSel = document.getElementById("chain-dist");
@@ -116,7 +133,7 @@ function setupUI() {
 window.initApp = initApp;
 
 function addMarker(place) {
-  if (place.chain) return; // チェーンメモは地図にピンを持たない
+  if (place.chain || place.category) return; // チェーン・カテゴリメモは地図に固定ピンを持たない
   const marker = new google.maps.Marker({
     position: { lat: place.lat, lng: place.lng },
     map,
@@ -190,17 +207,17 @@ function renderList() {
   for (const place of sorted) {
     const rest = remaining(place);
     const card = document.createElement("div");
-    card.className = "place-card" + (rest === 0 && place.items.length > 0 ? " done" : "") + (place.chain ? " chain" : "");
-    const name = (place.chain ? "🏪 " : "") + (place.name || "（名前なし）");
+    card.className = "place-card" + (rest === 0 && place.items.length > 0 ? " done" : "") + (place.chain || place.category ? " chain" : "");
+    const name = (place.chain ? "🏪 " : place.category ? "🛒 " : "") + (place.name || "（名前なし）");
     const count =
       place.items.length === 0
         ? "メモなし"
         : rest > 0
-        ? `買うもの ${rest}件` + (place.chain ? "・どこの店舗でも通知" : "")
+        ? `買うもの ${rest}件` + (place.chain ? "・どこの店舗でも通知" : place.category ? "・近くの店ならどこでも通知" : "")
         : "ぜんぶ買えた ✓";
     card.innerHTML = `<div class="name">${escapeHtml(name)}</div><div class="count">${count}</div>`;
     card.addEventListener("click", () => {
-      if (!place.chain) {
+      if (!place.chain && !place.category) {
         map.setCenter({ lat: place.lat, lng: place.lng });
         map.setZoom(Math.max(map.getZoom(), 15));
       }
@@ -394,6 +411,7 @@ async function toggleWatch() {
     navigator.geolocation.clearWatch(watchId);
     watchId = null;
     if (myMarker) { myMarker.setMap(null); myMarker = null; }
+    clearCategoryMarkers();
     btn.textContent = "🔔 見守り OFF";
     btn.classList.remove("on");
     status.textContent = "";
@@ -481,7 +499,43 @@ function onPosition(pos) {
   checkChains(latitude, longitude);
 }
 
-// ---- チェーンメモの近接チェック ----
+// カテゴリメモの定義（Google Placesの業種タイプ → 表示名）
+const CATEGORY_LABELS = {
+  supermarket: "スーパー",
+  convenience_store: "コンビニ",
+  drugstore: "ドラッグストア",
+};
+let categoryMarkers = []; // 近くの該当店舗を示す緑丸マーカー
+
+function clearCategoryMarkers() {
+  categoryMarkers.forEach((m) => m.setMap(null));
+  categoryMarkers = [];
+}
+
+// 近くの該当店舗を地図に緑丸で表示（通知チェックの検索結果を流用＝追加API消費なし）
+function showCategoryMarkers(results, lat, lng) {
+  for (const r of results.slice(0, 10)) {
+    if (!r.geometry || !r.geometry.location) continue;
+    if (distanceM(lat, lng, r.geometry.location.lat(), r.geometry.location.lng()) > 1200) continue;
+    categoryMarkers.push(
+      new google.maps.Marker({
+        position: r.geometry.location,
+        map,
+        title: r.name,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 6,
+          fillColor: "#16a34a",
+          fillOpacity: 0.9,
+          strokeColor: "#fff",
+          strokeWeight: 2,
+        },
+      })
+    );
+  }
+}
+
+// ---- チェーン・カテゴリメモの近接チェック ----
 // Places API の周辺検索で「近くに該当チェーンの店舗があるか」を調べる。
 // API消費を抑えるため、前回の問い合わせ地点から一定距離動いたときだけ実行する。
 const CHAIN_QUERY_MIN_INTERVAL_MS = 60 * 1000;      // 問い合わせは最短でも1分空ける
@@ -495,8 +549,11 @@ let lastChainQueryAt = 0;
 let lastChainQueryPos = null;
 
 function checkChains(lat, lng) {
-  const chains = places.filter((p) => p.chain && p.name && remaining(p) > 0);
-  if (chains.length === 0) return;
+  const chains = places.filter((p) => ((p.chain && p.name) || p.category) && remaining(p) > 0);
+  if (chains.length === 0) {
+    clearCategoryMarkers();
+    return;
+  }
 
   const now = Date.now();
   if (lastChainQueryPos) {
@@ -507,24 +564,32 @@ function checkChains(lat, lng) {
   lastChainQueryPos = { lat, lng };
 
   if (!placesService) placesService = new google.maps.places.PlacesService(map);
+  clearCategoryMarkers(); // 前回の緑丸を消して今回の結果で描き直す
 
   for (const chain of chains) {
-    const last = lastNotified[chain.id] || 0;
-    if (now - last <= RENOTIFY_MIN * 60 * 1000) continue; // クールダウン中
-    placesService.nearbySearch(
-      // 最寄り順で検索し、実際の距離で厳密にフィルタする（radius指定だと範囲外の店も返ることがあるため）
-      { location: { lat, lng }, rankBy: google.maps.places.RankBy.DISTANCE, keyword: chain.name },
-      (results, status) => {
-        if (status !== google.maps.places.PlacesServiceStatus.OK || !results || results.length === 0) return;
-        const branch = results[0]; // 最寄りの店舗
-        if (!branch.geometry || !branch.geometry.location) return;
-        const d = Math.round(distanceM(lat, lng, branch.geometry.location.lat(), branch.geometry.location.lng()));
-        if (d > settings.chainDist) return; // 設定距離より遠ければ通知しない
-        lastNotified[chain.id] = Date.now();
-        const items = chain.items.filter((it) => !it.checked).map((it) => it.text).join("、");
-        notify(`🏪 「${branch.name}」の近くです（約${d}m）`, "買うもの：" + items);
-      }
-    );
+    // 検索条件：チェーンは店名キーワード、カテゴリは業種タイプで最寄り順に探す
+    const req = { location: { lat, lng }, rankBy: google.maps.places.RankBy.DISTANCE };
+    if (chain.category) req.type = chain.category;
+    else req.keyword = chain.name;
+
+    placesService.nearbySearch(req, (results, status) => {
+      if (status !== google.maps.places.PlacesServiceStatus.OK || !results || results.length === 0) return;
+
+      // カテゴリメモは近くの店舗を地図に表示（通知とは独立して毎回更新）
+      if (chain.category) showCategoryMarkers(results, lat, lng);
+
+      // 通知（クールダウン中はスキップ）
+      const last = lastNotified[chain.id] || 0;
+      if (Date.now() - last <= RENOTIFY_MIN * 60 * 1000) return;
+      const branch = results[0]; // 最寄りの店舗
+      if (!branch.geometry || !branch.geometry.location) return;
+      const d = Math.round(distanceM(lat, lng, branch.geometry.location.lat(), branch.geometry.location.lng()));
+      if (d > settings.chainDist) return; // 設定距離より遠ければ通知しない
+      lastNotified[chain.id] = Date.now();
+      const items = chain.items.filter((it) => !it.checked).map((it) => it.text).join("、");
+      const icon = chain.category ? "🛒" : "🏪";
+      notify(`${icon} 「${branch.name}」の近くです（約${d}m）`, "買うもの：" + items);
+    });
   }
 }
 
