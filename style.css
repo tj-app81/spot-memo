@@ -170,9 +170,11 @@ html, body {
 .place-card.chain { border-style: dashed; border-color: #c7d5e8; background: #fbfdff; }
 #add-row, #add-cat-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 4px;
 }
+#add-cat-row button { flex: 1 1 45%; }
 #add-cat-row { margin-top: 8px; }
 #add-cat-row.hidden { display: none; }
 #add-row button, #add-cat-row button {

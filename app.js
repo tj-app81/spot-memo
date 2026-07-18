@@ -104,7 +104,14 @@ function setupUI() {
   addCatRow.querySelectorAll("button").forEach((b) => {
     b.addEventListener("click", () => {
       const cat = b.dataset.cat;
-      const place = { id: uid(), name: CATEGORY_LABELS[cat] || "カテゴリ", category: cat, items: [] };
+      let name;
+      if (cat === "custom") {
+        name = (prompt("カテゴリ名を入力（例：パン屋、本屋、カフェ）") || "").trim();
+        if (!name) return;
+      } else {
+        name = CATEGORY_LABELS[cat] || "カテゴリ";
+      }
+      const place = { id: uid(), name, category: cat, items: [] };
       places.push(place);
       save();
       addCatRow.classList.add("hidden");
@@ -208,7 +215,7 @@ function renderList() {
     const rest = remaining(place);
     const card = document.createElement("div");
     card.className = "place-card" + (rest === 0 && place.items.length > 0 ? " done" : "") + (place.chain || place.category ? " chain" : "");
-    const name = (place.chain ? "🏪 " : place.category ? "🛒 " : "") + (place.name || "（名前なし）");
+    const name = (place.chain ? "🏪 " : place.category ? categoryEmoji(place) + " " : "") + (place.name || "（名前なし）");
     const count =
       place.items.length === 0
         ? "メモなし"
@@ -505,6 +512,27 @@ const CATEGORY_LABELS = {
   convenience_store: "コンビニ",
   drugstore: "ドラッグストア",
 };
+
+// カテゴリ名から絵文字を自動判定
+const EMOJI_TABLE = [
+  ["パン", "🥐"], ["ベーカリー", "🥐"], ["本", "📚"], ["書店", "📚"], ["カフェ", "☕"], ["喫茶", "☕"], ["コーヒー", "☕"],
+  ["花", "💐"], ["酒", "🍶"], ["ワイン", "🍷"], ["肉", "🥩"], ["魚", "🐟"], ["鮮魚", "🐟"], ["ケーキ", "🍰"], ["菓子", "🍬"], ["スイーツ", "🍰"],
+  ["薬", "💊"], ["ドラッグ", "💊"], ["家電", "🔌"], ["電気", "🔌"], ["100", "🪙"], ["百均", "🪙"], ["ホームセンター", "🛠️"], ["工具", "🛠️"],
+  ["服", "👕"], ["衣料", "👕"], ["靴", "👟"], ["メガネ", "👓"], ["眼鏡", "👓"], ["文房具", "✏️"], ["文具", "✏️"],
+  ["パソコン", "💻"], ["ゲーム", "🎮"], ["おもちゃ", "🧸"], ["雑貨", "🧺"], ["コスメ", "💄"], ["化粧", "💄"],
+  ["八百屋", "🥬"], ["野菜", "🥬"], ["果物", "🍎"], ["米", "🍚"], ["弁当", "🍱"], ["寿司", "🍣"], ["ラーメン", "🍜"],
+  ["スーパー", "🛒"], ["コンビニ", "🏪"],
+];
+function categoryEmoji(place) {
+  if (place.category === "supermarket") return "🛒";
+  if (place.category === "convenience_store") return "🏪";
+  if (place.category === "drugstore") return "💊";
+  const n = place.name || "";
+  for (const [k, e] of EMOJI_TABLE) {
+    if (n.includes(k)) return e;
+  }
+  return "🏬";
+}
 let categoryMarkers = []; // 近くの該当店舗を示す緑丸マーカー
 
 function clearCategoryMarkers() {
@@ -549,7 +577,12 @@ let lastChainQueryAt = 0;
 let lastChainQueryPos = null;
 
 function checkChains(lat, lng) {
-  const chains = places.filter((p) => ((p.chain && p.name) || p.category) && remaining(p) > 0);
+  // 対象：名前ありのチェーン／業種カテゴリ／名前ありのカスタムカテゴリ
+  const chains = places.filter(
+    (p) =>
+      remaining(p) > 0 &&
+      ((p.chain && p.name) || (p.category === "custom" ? !!p.name : !!p.category))
+  );
   if (chains.length === 0) {
     clearCategoryMarkers();
     return;
@@ -569,8 +602,8 @@ function checkChains(lat, lng) {
   for (const chain of chains) {
     // 検索条件：チェーンは店名キーワード、カテゴリは業種タイプで最寄り順に探す
     const req = { location: { lat, lng }, rankBy: google.maps.places.RankBy.DISTANCE };
-    if (chain.category) req.type = chain.category;
-    else req.keyword = chain.name;
+    if (chain.category && chain.category !== "custom") req.type = chain.category; // 業種タイプで検索
+    else req.keyword = chain.name; // チェーン・カスタムカテゴリは名前で検索
 
     placesService.nearbySearch(req, (results, status) => {
       if (status !== google.maps.places.PlacesServiceStatus.OK || !results || results.length === 0) return;
@@ -587,7 +620,7 @@ function checkChains(lat, lng) {
       if (d > settings.chainDist) return; // 設定距離より遠ければ通知しない
       lastNotified[chain.id] = Date.now();
       const items = chain.items.filter((it) => !it.checked).map((it) => it.text).join("、");
-      const icon = chain.category ? "🛒" : "🏪";
+      const icon = chain.category ? categoryEmoji(chain) : "🏪";
       notify(`${icon} 「${branch.name}」の近くです（約${d}m）`, "買うもの：" + items);
     });
   }
