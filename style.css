@@ -149,12 +149,57 @@ html, body {
   cursor: pointer;
 }
 #list-toggle { flex: 1; }
-#watch-toggle { flex: 1; }
+#nearby-btn { flex: 1; }
+#watch-toggle { width: 52px; flex-shrink: 0; }
 #watch-toggle.on { background: var(--accent); color: #fff; }
-#notify-test { width: 52px; flex-shrink: 0; }
+
+/* ベルメニュー（でゅるっと出るポップアップ） */
+#bell-menu {
+  position: fixed;
+  right: 12px;
+  bottom: calc(76px + var(--safe-bottom));
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 8px;
+  transform-origin: bottom right;
+  animation: pop-up .3s cubic-bezier(.34, 1.56, .64, 1);
+}
+#bell-menu.hidden { display: none; }
+@keyframes pop-up {
+  from { transform: scale(.6) translateY(12px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+#bell-menu button {
+  border: none;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+}
+#bell-menu button:active { background: var(--accent-soft); }
+
+/* 近くのメモ：距離表示 */
+#nearby-list .dist {
+  float: right;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
 
 /* ===== ボトムシート共通 ===== */
-#sheet, #panel {
+#sheet, #panel, #nearby {
   position: fixed;
   left: 0;
   right: 0;
@@ -170,7 +215,7 @@ html, body {
   overflow-y: auto;
   transition: transform .25s ease, opacity .2s ease;
 }
-#sheet.hidden, #panel.hidden {
+#sheet.hidden, #panel.hidden, #nearby.hidden {
   transform: translateY(105%);
   opacity: 0;
   pointer-events: none;
@@ -182,7 +227,7 @@ html, body {
   background: #d7dee8;
   margin: 6px auto 10px;
 }
-#sheet h2 { font-size: 16px; margin: 0 0 10px; }
+#sheet h2, #nearby h2 { font-size: 16px; margin: 0 0 10px; }
 
 /* ===== 場所一覧 ===== */
 .place-card {
@@ -351,6 +396,6 @@ html, body {
 
 /* PCでは少しだけ余裕を持たせる */
 @media (min-width: 768px) {
-  #sheet, #panel { left: 16px; right: auto; width: 380px; border-radius: 22px; bottom: 84px; }
+  #sheet, #panel, #nearby { left: 16px; right: auto; width: 380px; border-radius: 22px; bottom: 84px; }
   #bottombar { max-width: 420px; }
 }

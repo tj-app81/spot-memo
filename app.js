@@ -40,11 +40,20 @@ function initApp() {
     gestureHandling: "greedy",   // スマホで1本指スクロールを地図操作に
   });
 
-  // 地図クリックで新しいピンを作る（シートが開いているときは閉じるだけ）
+  // 地図クリックで新しいピンを作る（シートやメニューが開いているときは閉じるだけ）
   map.addListener("click", (e) => {
     const sheet = document.getElementById("sheet");
-    if (!sheet.classList.contains("hidden") || !panel.classList.contains("hidden")) {
+    const nearby = document.getElementById("nearby");
+    const bellMenu = document.getElementById("bell-menu");
+    if (
+      !sheet.classList.contains("hidden") ||
+      !panel.classList.contains("hidden") ||
+      !nearby.classList.contains("hidden") ||
+      !bellMenu.classList.contains("hidden")
+    ) {
       sheet.classList.add("hidden");
+      nearby.classList.add("hidden");
+      bellMenu.classList.add("hidden");
       closePanel();
       return;
     }
@@ -85,8 +94,10 @@ function setupUI() {
   const sheet = document.getElementById("sheet");
   document.getElementById("list-toggle").addEventListener("click", () => {
     panel.classList.add("hidden");
+    document.getElementById("nearby").classList.add("hidden");
     sheet.classList.toggle("hidden");
   });
+  setupNearby();
   // チェーンメモの追加
   document.getElementById("add-chain").addEventListener("click", () => {
     const place = { id: uid(), name: "", chain: true, items: [] };
@@ -479,8 +490,22 @@ let myMarker = null;        // 現在地の青丸マーカー
 const lastNotified = {};    // placeId -> 最後に通知した時刻（ms）
 
 function setupWatch() {
-  document.getElementById("watch-toggle").addEventListener("click", toggleWatch);
-  document.getElementById("notify-test").addEventListener("click", async () => {
+  const menu = document.getElementById("bell-menu");
+  // ベルをタップ → メニューがでゅるっと出る
+  document.getElementById("watch-toggle").addEventListener("click", () => {
+    unlockAudio();
+    menu.classList.toggle("hidden");
+  });
+  document.getElementById("bell-on").addEventListener("click", () => {
+    menu.classList.add("hidden");
+    if (watchId === null) toggleWatch();
+  });
+  document.getElementById("bell-off").addEventListener("click", () => {
+    menu.classList.add("hidden");
+    if (watchId !== null) toggleWatch();
+  });
+  document.getElementById("bell-test").addEventListener("click", async () => {
+    menu.classList.add("hidden");
     unlockAudio();
     if (!(await ensureNotifyPermission())) return;
     notify("📍 テスト通知", "近くに来たらこんなふうにお知らせします");
@@ -581,7 +606,7 @@ async function toggleWatch() {
     watchId = null;
     if (myMarker) { myMarker.setMap(null); myMarker = null; }
     clearCategoryMarkers();
-    btn.textContent = "🔔 見守り OFF";
+    btn.textContent = "🔕";
     btn.classList.remove("on");
     status.textContent = "";
     localStorage.setItem("watchPref", "off"); // 手動OFFを記憶 → 次回は自動ONしない
@@ -599,7 +624,7 @@ async function toggleWatch() {
     (err) => { status.textContent = "位置情報エラー：" + err.message; },
     { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 }
   );
-  btn.textContent = "🔔 見守り ON";
+  btn.textContent = "🔔";
   btn.classList.add("on");
   updateWatchStatus();
   localStorage.setItem("watchPref", "on");
@@ -609,6 +634,89 @@ function updateWatchStatus() {
   if (watchId === null) return;
   document.getElementById("watch-status").textContent =
     `メモが残っている場所の近く（📍${settings.pinDist}m／🏪${settings.chainDist}m）で通知します`;
+}
+
+// ---- 近くのメモ（現在地から近い順に一覧表示） ----
+let lastFix = null; // 見守り中の最新位置
+
+function setupNearby() {
+  document.getElementById("nearby-btn").addEventListener("click", async () => {
+    const el = document.getElementById("nearby");
+    if (!el.classList.contains("hidden")) {
+      el.classList.add("hidden");
+      return;
+    }
+    // 現在地：見守り中なら最新値、なければその場で1回取得
+    let fix = lastFix;
+    if (!fix && navigator.geolocation) {
+      try {
+        const pos = await new Promise((res, rej) =>
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000, maximumAge: 60000 })
+        );
+        fix = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        lastFix = fix;
+      } catch {}
+    }
+    renderNearby(fix);
+    document.getElementById("sheet").classList.add("hidden");
+    panel.classList.add("hidden");
+    el.classList.remove("hidden");
+  });
+}
+
+function renderNearby(fix) {
+  const listEl = document.getElementById("nearby-list");
+  listEl.innerHTML = "";
+  const active = places.filter((p) => remaining(p) > 0);
+  if (active.length === 0) {
+    listEl.innerHTML = '<p class="empty">残っているメモはありません 🎉</p>';
+    return;
+  }
+  const restText = (p) => p.items.filter((i) => !i.checked).map((i) => i.text).join("、");
+
+  // 場所ピン：距離順
+  const pins = active.filter((p) => !p.chain && !p.category);
+  let rows;
+  if (fix) {
+    rows = pins
+      .map((p) => ({ p, d: distanceM(fix.lat, fix.lng, p.lat, p.lng) }))
+      .sort((a, b) => a.d - b.d);
+  } else {
+    rows = pins.map((p) => ({ p, d: null }));
+    if (pins.length > 0) {
+      listEl.innerHTML = '<p class="empty">現在地が取れないため距離なしで表示しています</p>';
+    }
+  }
+  for (const { p, d } of rows) {
+    const div = document.createElement("div");
+    div.className = "place-card";
+    const dist = d == null ? "" : d < 1000 ? `約${Math.round(d)}m` : `約${(d / 1000).toFixed(1)}km`;
+    div.innerHTML =
+      `<div class="name">📍 ${escapeHtml(p.name || "（名前なし）")}${dist ? `<span class="dist">${dist}</span>` : ""}</div>` +
+      `<div class="count">${escapeHtml(restText(p))}</div>`;
+    div.addEventListener("click", () => {
+      document.getElementById("nearby").classList.add("hidden");
+      map.setCenter({ lat: p.lat, lng: p.lng });
+      map.setZoom(Math.max(map.getZoom(), 16));
+      openPanel(p.id);
+    });
+    listEl.appendChild(div);
+  }
+
+  // チェーン・カテゴリ：「どこでも」枠として下に表示
+  for (const p of active.filter((p) => p.chain || p.category)) {
+    const div = document.createElement("div");
+    div.className = "place-card chain";
+    const emoji = p.chain ? "🏪" : categoryEmoji(p);
+    div.innerHTML =
+      `<div class="name">${emoji} ${escapeHtml(p.name || "（名前なし）")}<span class="dist">近くの店で通知</span></div>` +
+      `<div class="count">${escapeHtml(restText(p))}</div>`;
+    div.addEventListener("click", () => {
+      document.getElementById("nearby").classList.add("hidden");
+      openPanel(p.id);
+    });
+    listEl.appendChild(div);
+  }
 }
 
 // 開いたときに見守りを自動開始する。
@@ -628,6 +736,7 @@ async function autoStartWatch() {
 
 function onPosition(pos) {
   const { latitude, longitude } = pos.coords;
+  lastFix = { lat: latitude, lng: longitude }; // 「近くのメモ」用に最新位置を記憶
 
   // 現在地マーカー（青丸）
   if (!myMarker) {

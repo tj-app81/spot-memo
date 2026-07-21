@@ -40,9 +40,23 @@
   <!-- 下部バー -->
   <nav id="bottombar">
     <button id="list-toggle" type="button">📝 リスト</button>
-    <button id="watch-toggle" type="button">🔔 見守り OFF</button>
-    <button id="notify-test" type="button" title="通知の見た目を確認">✉️</button>
+    <button id="nearby-btn" type="button">📍 近くのメモ</button>
+    <button id="watch-toggle" type="button" title="見守り設定">🔕</button>
   </nav>
+
+  <!-- ベルメニュー（見守り設定） -->
+  <div id="bell-menu" class="hidden">
+    <button id="bell-on" type="button">🔔 見守りON</button>
+    <button id="bell-off" type="button">🔕 見守りOFF</button>
+    <button id="bell-test" type="button">✉️ テスト通知</button>
+  </div>
+
+  <!-- 近くのメモ（下からスライドするシート） -->
+  <div id="nearby" class="hidden">
+    <div class="sheet-handle"></div>
+    <h2>近くのメモ</h2>
+    <div id="nearby-list"></div>
+  </div>
 
   <!-- 場所一覧（下からスライドするシート） -->
   <div id="sheet" class="hidden">
